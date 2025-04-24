@@ -1,153 +1,126 @@
-import 'dotenv/WorkoutPlanAIScreen';
 import React, { useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
   Button,
   Image,
   ScrollView,
-  StyleSheet,
-  ActivityIndicator,
-  Alert,
-  Platform
+  StyleSheet
 } from 'react-native';
 
-W_BASE: process.env.W_BASE
-
-const LANGUAGE = 2; 
-
-// Map user-friendly muscle names to Wger muscle IDs
-const MUSCLE_MAP = {
-  biceps: 1,
-  triceps: 2,
-  shoulders: 3,
-  chest: 5,
-  back: 7,
-  abdominals: 6,
-  legs: 9,      
-  calves: 11,
-  forearms: 12,
-  glutes: 8,
-  hamstrings: 10,
+// 1) Map each muscle → its 4 local GIFs (in the same order as names below)
+const GIFS = {
+  back: [
+    require('../../assets/exercises/back1.gif'),
+    require('../../assets/exercises/back2.gif'),
+    require('../../assets/exercises/back3.gif'),
+    require('../../assets/exercises/back4.gif'),
+  ],
+  chest: [
+    require('../../assets/exercises/chest1.gif'),
+    require('../../assets/exercises/chest2.gif'),
+    require('../../assets/exercises/chest3.gif'),
+    require('../../assets/exercises/chest4.gif'),
+  ],
 };
 
-export default function WorkoutPlanAIScreen() {
-  const [day, setDay] = useState('Monday');
-  const [muscles, setMuscles] = useState('Back, Biceps');
-  const [plan, setPlan] = useState(null);
-  const [loading, setLoading] = useState(false);
+// 2) Provide matching exercise names in the same order
+const EXERCISES = {
+  back: [
+    'Dumbbell Row',
+    'Barbell Bent Over Rowp',
+    'Lat Pulldown',
+    'Barbell Row',
+  ],
+  biceps: [
+    'Dumbbell Curl',
+    'Hammer Curl',
+    'Preacher Curl',
+    'Concentration Curl',
+  ],
+  triceps: [
+    'Tricep Dip',
+    'Overhead Tricep Extension',
+    'Cable Pushdown',
+    'Skull Crusher',
+  ],
+  chest: [
+    'Incline Barbell Bench Press',
+    'Dumbbell Bench Press',
+    'Chest Dip',
+    'Push-Up',
+  ],
+  abs: [
+    'Crunch',
+    'Leg Raise',
+    'Plank',
+    'Bicycle Crunch',
+  ],
+  shoulders: [
+    'Overhead Press',
+    'Lateral Raise',
+    'Front Raise',
+    'Rear Delt Fly',
+  ],
+  quads: [
+    'Squat',
+    'Lunge',
+    'Leg Press',
+    'Leg Extension',
+  ],
+  calves: [
+    'Standing Calf Raise',
+    'Seated Calf Raise',
+    'Donkey Calf Raise',
+    'Calf Press',
+  ],
+};
 
-  // Fetch exercise list for a given muscle ID
-  const fetchExercises = async (muscleId) => {
-    const url = `${WGER_BASE}/exercise?language=${LANGUAGE}&muscles=${muscleId}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`Failed to load exercises (${res.status})`);
-    const json = await res.json();
-    return json.results; // array of { id, name, description, ... }
-  };
+// helper to title‐case
+const titleCase = s => s.charAt(0).toUpperCase() + s.slice(1);
 
-  // Fetch first image URL for an exercise
-  const fetchExerciseImage = async (exerciseId) => {
-    const url = `${WGER_BASE}/exerciseimage?exercise=${exerciseId}`;
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const json = await res.json();
-    return json.results[0]?.image || null;
-  };
+export default function WorkoutPlanAiScreen() {
+  const [plan, setPlan]       = useState([]);
+  const [selectedMuscle, setSelectedMuscle] = useState(null);
 
-  const generatePlan = async () => {
-    setLoading(true);
-    setPlan(null);
-
-    // parse user input muscles into array & map to IDs
-    const muscleList = muscles
-      .split(',')
-      .map(m => m.trim().toLowerCase())
-      .filter(m => MUSCLE_MAP[m])
-      .map(m => ({ name: m, id: MUSCLE_MAP[m] }));
-
-    if (muscleList.length === 0) {
-      Alert.alert('Input Error', 'Please enter valid muscle groups (e.g. Back, Biceps).');
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const results = [];
-      for (let { name, id } of muscleList) {
-        const exs = await fetchExercises(id);
-        if (!exs.length) continue;
-        // pick random exercise
-        const choice = exs[Math.floor(Math.random() * exs.length)];
-        // get image if any
-        let img = null;
-        try {
-          img = await fetchExerciseImage(choice.id);
-        } catch {}
-        // assign default sets/reps
-        results.push({
-          name: choice.name,
-          sets: '3 sets x 10 reps',
-          image: img,
-        });
-      }
-
-      if (!results.length) {
-        Alert.alert('No Exercises', 'No exercises found for those muscle groups.');
-      } else {
-        setPlan({ day, muscles: muscleList.map(m => m.name), exercises: results });
-      }
-    } catch (err) {
-      Alert.alert('Error', err.message);
-    }
-
-    setLoading(false);
+  const handlePress = (muscle) => {
+    setSelectedMuscle(muscle);
+    const names = EXERCISES[muscle] || [];
+    const gifs  = GIFS[muscle]      || [];
+    const items = names.map((name, i) => ({
+      name,
+      sets: '3 sets x 10 reps',
+      gif: gifs[i] || null,
+    }));
+    setPlan(items);
   };
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.header}>Workout Planner</Text>
+      <Text style={styles.subHeader}>Tap a muscle to generate your plan</Text>
 
-      <View style={styles.inputRow}>
-        <Text style={styles.label}>Day:</Text>
-        <TextInput
-          style={styles.input}
-          value={day}
-          onChangeText={setDay}
-          placeholder="e.g. Monday"
-          placeholderTextColor="#888"
-        />
+      <View style={styles.buttonRow}>
+        {Object.keys(EXERCISES).map(m => (
+          <View key={m} style={styles.btnWrapper}>
+            <Button
+              title={titleCase(m)}
+              color="#D4AF37"
+              onPress={() => handlePress(m)}
+            />
+          </View>
+        ))}
       </View>
 
-      <View style={styles.inputRow}>
-        <Text style={styles.label}>Muscles:</Text>
-        <TextInput
-          style={styles.input}
-          value={muscles}
-          onChangeText={setMuscles}
-          placeholder="e.g. Back, Biceps"
-          placeholderTextColor="#888"
-        />
-      </View>
-
-      <Button title="Generate Plan" onPress={generatePlan} color="#D4AF37" />
-      {loading && <ActivityIndicator style={styles.loading} size="large" />}
-
-      {plan && (
+      {selectedMuscle && (
         <View style={styles.plan}>
-          <Text style={styles.planHeader}>
-            {plan.day}: {plan.muscles.join(', ')}
-          </Text>
-          {plan.exercises.map((ex, i) => (
+          {plan.map((ex, i) => (
             <View key={i} style={styles.exercise}>
               <Text style={styles.exerciseText}>
                 {ex.sets} — {ex.name}
               </Text>
-              {ex.image ? (
-                <Image source={{ uri: ex.image }} style={styles.image} />
-              ) : (
-                <Text style={styles.noImage}>No image</Text>
+              {ex.gif && (
+                <Image source={ex.gif} style={styles.gif} />
               )}
             </View>
           ))}
@@ -162,58 +135,43 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     backgroundColor: '#141414',
     padding: 16,
-    alignItems: 'center',
+    alignItems: 'center'
   },
   header: {
     fontSize: 24,
     color: '#D4AF37',
-    marginBottom: 16,
     fontWeight: 'bold',
+    marginBottom: 4
   },
-  inputRow: {
-    width: '100%',
-    marginBottom: 12,
-  },
-  label: {
+  subHeader: {
     color: '#fff',
-    marginBottom: 4,
+    marginBottom: 12
   },
-  input: {
-    backgroundColor: '#1c1c1c',
-    color: '#fff',
-    borderColor: '#D4AF37',
-    borderWidth: 1,
-    borderRadius: 6,
-    padding: Platform.OS === 'ios' ? 12 : 8,
+  buttonRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center'
   },
-  loading: {
-    marginVertical: 20,
+  btnWrapper: {
+    margin: 6,
+    width: '40%'
   },
   plan: {
-    marginTop: 20,
-    width: '100%',
-  },
-  planHeader: {
-    fontSize: 20,
-    color: '#fff',
-    marginBottom: 12,
-    textAlign: 'center',
+    marginTop: 24,
+    width: '100%'
   },
   exercise: {
-    marginBottom: 16,
-    alignItems: 'center',
+    marginBottom: 20,
+    alignItems: 'center'
   },
   exerciseText: {
     color: '#fff',
-    marginBottom: 6,
+    marginBottom: 8,
+    textAlign: 'center'
   },
-  image: {
-    width: 200,
-    height: 120,
-    borderRadius: 6,
-  },
-  noImage: {
-    color: '#888',
-    fontStyle: 'italic',
-  },
+  gif: {
+    width: 250,
+    height: 140,
+    borderRadius: 6
+  }
 });

@@ -1,4 +1,3 @@
-import 'dotenv/MealPlanAIScreen';
 import React, { useState } from 'react';
 import {
   View,
@@ -11,8 +10,7 @@ import {
   StyleSheet,
   Alert
 } from 'react-native';
-
-API_KEY: process.env.API_KEY
+import { API_KEY } from '@env'; // ✅ Import API_KEY from .env
 
 const SPOONACULAR_API_URL = 'https://api.spoonacular.com/mealplanner/generate';
 const SPOONACULAR_RECIPE_URL = 'https://api.spoonacular.com/recipes';
@@ -21,23 +19,18 @@ const MealPlanSpoonacularScreen = () => {
   const [targetCalories, setTargetCalories] = useState('2000');
   const [mealPlan, setMealPlan] = useState(null);
   const [loading, setLoading] = useState(false);
-  // recipeDetails will store recipe data keyed by meal id
   const [recipeDetails, setRecipeDetails] = useState({});
-  // recipeLoading stores loading state for each meal id
   const [recipeLoading, setRecipeLoading] = useState({});
 
-  // Generate the meal plan for a day based on target calories.
   const generateMealPlan = async () => {
     setLoading(true);
     setMealPlan(null);
-    setRecipeDetails({}); // Clear any previously loaded recipe details
+    setRecipeDetails({});
     try {
       const response = await fetch(
         `${SPOONACULAR_API_URL}?timeFrame=day&targetCalories=${targetCalories}&apiKey=${API_KEY}`
       );
-      if (!response.ok) {
-        throw new Error(`Error: ${response.statusText}`);
-      }
+      if (!response.ok) throw new Error(`Error: ${response.statusText}`);
       const data = await response.json();
       setMealPlan(data);
     } catch (error) {
@@ -47,17 +40,13 @@ const MealPlanSpoonacularScreen = () => {
     setLoading(false);
   };
 
-  // Fetch the detailed recipe for a given meal (by meal.id)
   const fetchRecipeDetails = async (mealId) => {
-    // Set the individual meal loading state
     setRecipeLoading((prev) => ({ ...prev, [mealId]: true }));
     try {
       const response = await fetch(
         `${SPOONACULAR_RECIPE_URL}/${mealId}/information?apiKey=${API_KEY}`
       );
-      if (!response.ok) {
-        throw new Error(`Failed to fetch recipe details: ${response.statusText}`);
-      }
+      if (!response.ok) throw new Error(`Failed to fetch recipe details: ${response.statusText}`);
       const data = await response.json();
       setRecipeDetails((prev) => ({ ...prev, [mealId]: data }));
     } catch (error) {
@@ -67,7 +56,6 @@ const MealPlanSpoonacularScreen = () => {
     setRecipeLoading((prev) => ({ ...prev, [mealId]: false }));
   };
 
-  // Hide recipe details for a given meal id.
   const hideRecipeDetails = (mealId) => {
     setRecipeDetails((prev) => {
       const newState = { ...prev };
@@ -80,22 +68,23 @@ const MealPlanSpoonacularScreen = () => {
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.header}>Meal Plan Generator</Text>
       <View style={styles.inputContainer}>
-        <Text>Target Calories:</Text>
+        <Text style={styles.label}>Target Calories:</Text>
         <TextInput
           style={styles.input}
           value={targetCalories}
           onChangeText={setTargetCalories}
           keyboardType="numeric"
           placeholder="e.g. 2000"
+          placeholderTextColor="#888"
         />
       </View>
-      <Button title="Generate Meal Plan" onPress={generateMealPlan} />
+      <Button title="Generate Meal Plan" onPress={generateMealPlan} color="#D4AF37" />
       {loading && <ActivityIndicator size="large" style={styles.loading} />}
+
       {mealPlan && (
         <View style={styles.mealPlanContainer}>
           <Text style={styles.planHeader}>Meal Plan for Today</Text>
           {mealPlan.meals && mealPlan.meals.map((meal) => {
-            // Construct the image URL as per Spoonacular docs.
             const imageUrl = `https://spoonacular.com/recipeImages/${meal.id}-312x231.${meal.imageType}`;
             return (
               <View key={meal.id} style={styles.mealItem}>
@@ -103,15 +92,10 @@ const MealPlanSpoonacularScreen = () => {
                 <Text>
                   Ready in {meal.readyInMinutes} minutes | Serves: {meal.servings}
                 </Text>
-                <Image
-                  source={{ uri: imageUrl }}
-                  style={styles.mealImage}
-                  resizeMode="cover"
-                />
-                {/* Button for showing or hiding the recipe */}
+                <Image source={{ uri: imageUrl }} style={styles.mealImage} resizeMode="cover" />
                 {recipeDetails[meal.id] ? (
                   <>
-                    <Button title="Hide Recipe" onPress={() => hideRecipeDetails(meal.id)} />
+                    <Button title="Hide Recipe" onPress={() => hideRecipeDetails(meal.id)} color="#D4AF37" />
                     <View style={styles.recipeContainer}>
                       <Text style={styles.recipeTitle}>{recipeDetails[meal.id].title}</Text>
                       <Text style={styles.recipeSummary}>
@@ -128,6 +112,7 @@ const MealPlanSpoonacularScreen = () => {
                   <Button
                     title={recipeLoading[meal.id] ? "Loading Recipe..." : "Show Recipe"}
                     onPress={() => fetchRecipeDetails(meal.id)}
+                    color="#D4AF37"
                   />
                 )}
               </View>
@@ -138,7 +123,7 @@ const MealPlanSpoonacularScreen = () => {
               <Text style={styles.nutrientsText}>Calories: {mealPlan.nutrients.calories}</Text>
               <Text style={styles.nutrientsText}>Protein: {mealPlan.nutrients.protein}g</Text>
               <Text style={styles.nutrientsText}>Fat: {mealPlan.nutrients.fat}g</Text>
-              <Text style={styles.nutrientsText}>Carbohydrates: {mealPlan.nutrients.carbohydrates}g</Text>
+              <Text style={styles.nutrientsText}>Carbs: {mealPlan.nutrients.carbohydrates}g</Text>
             </View>
           )}
         </View>
@@ -153,77 +138,93 @@ const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     padding: 16,
-    backgroundColor: '#fff'
+    backgroundColor: '#141414',
+    alignItems: 'center',
   },
   header: {
     fontSize: 22,
     fontWeight: 'bold',
     marginBottom: 16,
-    textAlign: 'center'
+    color: '#D4AF37',
   },
   inputContainer: {
-    marginVertical: 8
+    marginVertical: 8,
+    width: '100%',
+  },
+  label: {
+    color: '#fff',
+    marginBottom: 4,
   },
   input: {
-    borderColor: '#666',
+    borderColor: '#D4AF37',
     borderWidth: 1,
     padding: 8,
     borderRadius: 4,
-    marginTop: 4
+    marginTop: 4,
+    color: '#fff',
+    backgroundColor: '#1c1c1c',
   },
   loading: {
-    marginVertical: 20
+    marginVertical: 20,
   },
   mealPlanContainer: {
-    marginTop: 16
+    marginTop: 16,
+    width: '100%',
   },
   planHeader: {
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 8,
-    textAlign: 'center'
+    textAlign: 'center',
+    color: '#fff',
   },
   mealItem: {
     marginBottom: 12,
-    borderBottomColor: '#ccc',
+    borderBottomColor: '#333',
     borderBottomWidth: 1,
     paddingBottom: 12,
-    alignItems: 'center'
+    alignItems: 'center',
   },
   mealTitle: {
     fontSize: 16,
-    fontWeight: 'bold'
+    fontWeight: 'bold',
+    color: '#fff',
   },
   mealImage: {
     width: 300,
     height: 200,
-    marginTop: 8
+    marginTop: 8,
+    borderRadius: 6,
   },
   recipeContainer: {
     marginTop: 8,
     padding: 8,
-    backgroundColor: '#f2f2f2',
+    backgroundColor: '#1c1c1c',
     borderRadius: 4,
-    width: '90%'
+    width: '90%',
   },
   recipeTitle: {
     fontSize: 16,
-    fontWeight: 'bold'
+    fontWeight: 'bold',
+    color: '#D4AF37',
   },
   recipeSummary: {
     fontSize: 14,
-    marginVertical: 4
+    marginVertical: 4,
+    color: '#fff',
   },
   recipeInstructions: {
     fontSize: 14,
-    marginVertical: 4
+    marginVertical: 4,
+    color: '#fff',
   },
   nutrientsContainer: {
     marginTop: 16,
-    alignItems: 'center'
+    alignItems: 'center',
   },
   nutrientsText: {
     fontSize: 16,
-    marginVertical: 2
-  }
+    marginVertical: 2,
+    color: '#fff',
+  },
 });
