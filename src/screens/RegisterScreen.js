@@ -134,23 +134,7 @@ export default function RegisterScreen({ navigation }) {
           contentContainerStyle={styles.scrollContainer}
           showsVerticalScrollIndicator={false}
         >
-          {/* Header Section */}
-          <Animated.View 
-            style={[
-              styles.headerSection,
-              {
-                opacity: fadeAnim,
-                transform: [
-                  { translateY: slideAnim }
-                ]
-              }
-            ]}
-          >
-            <Text style={styles.appName}>SmartFit</Text>
-            <Text style={styles.appSubtitle}>Your Personal Fitness Companion</Text>
-          </Animated.View>
-
-          {/* Form Container */}
+          {/* Form Container - Immediately start with this section */}
           <Animated.View 
             style={[
               styles.formContainer,
@@ -370,26 +354,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     paddingBottom: 40,
-    paddingTop: 40,
-  },
-  headerSection: {
-    alignItems: 'center',
-    marginBottom: 30,
-    marginTop: -20,
-  },
-  appName: {
-    fontSize: 42,
-    fontWeight: 'bold',
-    color: '#D4AF37',
-    textAlign: 'center',
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 4,
-  },
-  appSubtitle: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: 16,
-    marginTop: 8,
+    // Add extra padding at the top to prevent collision with status bar
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
   },
   formContainer: {
     width: '100%',
