@@ -1,5 +1,3 @@
-
-
 import React, { useContext, useEffect, useState } from 'react';
 import {
   View,
@@ -88,9 +86,6 @@ export default function CustomDrawerContent(props) {
         <Text style={styles.welcomeText}>
           Welcome, {displayName}
         </Text>
-        <Text style={styles.emailText}>
-          {user?.email || ''}
-        </Text>
       </View>
       
       <View style={styles.divider} />
@@ -119,26 +114,35 @@ export default function CustomDrawerContent(props) {
 const styles = StyleSheet.create({
   scrollContainer: {
     flex: 1,
-    paddingTop: 0,
+    paddingTop: 20,
   },
   headerContainer: {
     padding: 20,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#1E1E1E', // Changed from white (#F5F5F5) to dark background to match the drawer
     alignItems: 'center',
-    paddingTop: 30,
+    paddingTop: 40,
     paddingBottom: 20,
+    borderBottomWidth: 0, // Removed border
   },
   profileImageContainer: {
     width: 80,
     height: 80,
     borderRadius: 40,
     overflow: 'hidden',
-    marginBottom: 10,
-    backgroundColor: '#D4AF37',
+    marginBottom: 15,
+    backgroundColor: '#D4AF37', // Gold color for the avatar
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#F5F5F5',
+    borderColor: '#2A2A2A', // Subtle border color
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 4,
   },
   profileInitial: {
     fontSize: 32,
@@ -148,16 +152,12 @@ const styles = StyleSheet.create({
   welcomeText: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#141414',
-    marginBottom: 4,
-  },
-  emailText: {
-    fontSize: 14,
-    color: '#666666',
+    color: '#FFFFFF', // Changed to white text for better contrast on dark background
+    marginTop: 5,
   },
   divider: {
     height: 1,
-    backgroundColor: '#E0E0E0',
+    backgroundColor: '#2A2A2A', // Darker divider to be subtle on dark background
     marginVertical: 10,
     marginHorizontal: 15,
   },
