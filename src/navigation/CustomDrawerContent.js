@@ -30,7 +30,7 @@ export default function CustomDrawerContent(props) {
           const docSnap = await getDoc(docRef);
           
           if (docSnap.exists()) {
-            // Try different possible field names for the user's name
+            
             const data = docSnap.data();
             const name = data.displayName || data.fullName || data.name || data.username || data.firstName;
             
