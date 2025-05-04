@@ -14,40 +14,72 @@ import * as Progress from 'react-native-progress';
 import { PieChart } from 'react-native-chart-kit';
 import { AuthContext } from '../context/AuthContext';
 import { NIX_ID, NIX_KEY } from '@env';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db } from '../firebase/config';
 
 const calcBMR = (w, h, a) => 10 * w + 6.25 * h - 5 * a + 5;
 const ACTIVITY = 1.55;
 
 export default function CalorieTrackerScreen() {
-  const { userData } = useContext(AuthContext);
+  const { user, userData } = useContext(AuthContext);
+  const userId = user?.uid;
   const [dailyGoal, setDailyGoal] = useState(0);
 
   const [mealInput, setMealInput] = useState('');
-  const [meals, setMeals] = useState([]); // { name, calories, protein, carbs, fat }
+  const [meals, setMeals]         = useState([]); // { name, calories, protein, carbs, fat }
 
-  const [exInput, setExInput] = useState('');
-  const [exs, setExs] = useState([]);
+  const [exInput, setExInput]     = useState('');
+  const [exs, setExs]             = useState([]); // { name, calories }
 
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading]     = useState(false);
 
+  const today = new Date().toISOString().split('T')[0];
+
+  // Load userData & today's log from Firestore
   useEffect(() => {
     if (!userData) return;
-    const w = Number(userData.weight),
-      h = Number(userData.height),
-      a = Number(userData.age),
-      tw = Number(userData.targetWeight);
+
+    // 1) compute daily goal
+    const w  = Number(userData.weight),
+          h  = Number(userData.height),
+          a  = Number(userData.age),
+          tw = Number(userData.targetWeight);
     let tdee = calcBMR(w, h, a) * ACTIVITY;
     tdee = tw > w ? tdee + 500 : tdee - 500;
     setDailyGoal(Math.round(tdee));
+
+    // 2) load today's meals/exercises
+    const loadToday = async () => {
+      if (!userId) return;
+      const ref = doc(db, 'users', userId, 'calorieLogs', today);
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        const data = snap.data();
+        setMeals(data.meals || []);
+        setExs(data.exs   || []);
+      }
+    };
+    loadToday();
   }, [userData]);
 
+  // helper to save current log
+  const updateFirestore = async (newMeals, newExs) => {
+    if (!userId) return;
+    const ref = doc(db, 'users', userId, 'calorieLogs', today);
+    await setDoc(ref, {
+      meals: newMeals,
+      exs:   newExs
+    });
+  };
+
+  // shared fetch for Nutritionix
   const nixFetch = async (url, body) => {
     const res = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-app-id': NIX_ID,
-        'x-app-key': NIX_KEY
+        'x-app-id':      NIX_ID,
+        'x-app-key':     NIX_KEY
       },
       body: JSON.stringify(body)
     });
@@ -58,66 +90,89 @@ export default function CalorieTrackerScreen() {
   const addMeal = async () => {
     if (!mealInput.trim()) return Alert.alert('Enter meal');
     setLoading(true);
+
     try {
       const data = await nixFetch(
         'https://trackapi.nutritionix.com/v2/natural/nutrients',
         { query: mealInput }
       );
-      const calories = data.foods.reduce((s, f) => s + (f.nf_calories || 0), 0);
-      const protein = data.foods.reduce((s, f) => s + (f.nf_protein || 0), 0);
-      const carbs = data.foods.reduce((s, f) => s + (f.nf_total_carbohydrate || 0), 0);
-      const fat = data.foods.reduce((s, f) => s + (f.nf_total_fat || 0), 0);
+      if (!data.foods?.length) {
+        Alert.alert('Not Found', 'We are sorry, this meal is not in our database.');
+        setLoading(false);
+        return;
+      }
 
-      setMeals(m => [{
+      const calories = data.foods.reduce((s, f) => s + (f.nf_calories || 0), 0);
+      const protein  = data.foods.reduce((s, f) => s + (f.nf_protein || 0), 0);
+      const carbs    = data.foods.reduce((s, f) => s + (f.nf_total_carbohydrate || 0), 0);
+      const fat      = data.foods.reduce((s, f) => s + (f.nf_total_fat || 0), 0);
+
+      const newMeal = {
         name: mealInput,
         calories: Math.round(calories),
-        protein: Math.round(protein),
-        carbs: Math.round(carbs),
-        fat: Math.round(fat)
-      }, ...m]);
+        protein:  Math.round(protein),
+        carbs:    Math.round(carbs),
+        fat:      Math.round(fat)
+      };
+
+      const updatedMeals = [newMeal, ...meals];
+      setMeals(updatedMeals);
+      await updateFirestore(updatedMeals, exs);
 
       setMealInput('');
       Keyboard.dismiss();
     } catch (e) {
-      Alert.alert('Error fetching meal', e.message);
+      Alert.alert('Error', e.message);
     }
+
     setLoading(false);
   };
 
   const addEx = async () => {
     if (!exInput.trim()) return Alert.alert('Enter exercise');
     setLoading(true);
+
     try {
       const data = await nixFetch(
         'https://trackapi.nutritionix.com/v2/natural/exercise',
         { query: exInput }
       );
+      if (!data.exercises?.length) {
+        Alert.alert('Not Found', 'We are sorry, this exercise is not in our database.');
+        setLoading(false);
+        return;
+      }
+
       const calories = data.exercises.reduce((s, x) => s + (x.nf_calories || 0), 0);
-      setExs(e => [{
-        name: exInput,
-        calories: Math.round(calories)
-      }, ...e]);
+      const newEx    = { name: exInput, calories: Math.round(calories) };
+
+      const updatedExs = [newEx, ...exs];
+      setExs(updatedExs);
+      await updateFirestore(meals, updatedExs);
+
       setExInput('');
       Keyboard.dismiss();
     } catch (e) {
-      Alert.alert('Error fetching exercise', e.message);
+      Alert.alert('Error', e.message);
     }
+
     setLoading(false);
   };
 
+  // recalc totals
   const consumed = meals.reduce((s, m) => s + m.calories, 0);
-  const burned = exs.reduce((s, x) => s + x.calories, 0);
-  const remain = Math.max(dailyGoal - consumed + burned, 0);
+  const burned   = exs.reduce((s, x) => s + x.calories, 0);
+  const remain   = Math.max(dailyGoal - consumed + burned, 0);
   const progress = dailyGoal > 0 ? consumed / dailyGoal : 0;
 
   const proteinTotal = meals.reduce((s, m) => s + m.protein, 0);
-  const carbsTotal = meals.reduce((s, m) => s + m.carbs, 0);
-  const fatTotal = meals.reduce((s, m) => s + m.fat, 0);
+  const carbsTotal   = meals.reduce((s, m) => s + m.carbs, 0);
+  const fatTotal     = meals.reduce((s, m) => s + m.fat, 0);
 
   const pieData = [
     { name: 'Protein', population: proteinTotal, color: '#D4AF37', legendFontColor: '#fff', legendFontSize: 14 },
-    { name: 'Carbs', population: carbsTotal, color: '#4CAF50', legendFontColor: '#fff', legendFontSize: 14 },
-    { name: 'Fat', population: fatTotal, color: '#F44336', legendFontColor: '#fff', legendFontSize: 14 },
+    { name: 'Carbs',   population: carbsTotal,   color: '#4CAF50', legendFontColor: '#fff', legendFontSize: 14 },
+    { name: 'Fat',     population: fatTotal,     color: '#F44336', legendFontColor: '#fff', legendFontSize: 14 },
   ];
 
   return (
@@ -156,6 +211,7 @@ export default function CalorieTrackerScreen() {
         />
       )}
 
+      {/* Meal input */}
       <View style={styles.row}>
         <TextInput
           style={styles.input}
@@ -164,9 +220,15 @@ export default function CalorieTrackerScreen() {
           value={mealInput}
           onChangeText={setMealInput}
         />
-        <Button title={loading ? '...' : 'Add Meal'} onPress={addMeal} color="#D4AF37" disabled={loading} />
+        <Button
+          title={loading ? '...' : 'Add Meal'}
+          onPress={addMeal}
+          color="#D4AF37"
+          disabled={loading}
+        />
       </View>
 
+      {/* Exercise input */}
       <View style={styles.row}>
         <TextInput
           style={styles.input}
@@ -175,15 +237,22 @@ export default function CalorieTrackerScreen() {
           value={exInput}
           onChangeText={setExInput}
         />
-        <Button title={loading ? '...' : 'Add Ex'} onPress={addEx} color="#D4AF37" disabled={loading} />
+        <Button
+          title={loading ? '...' : 'Add Ex'}
+          onPress={addEx}
+          color="#D4AF37"
+          disabled={loading}
+        />
       </View>
 
+      {/* Legend */}
       <View style={styles.legend}>
         <Text style={styles.legendText}>Base: {dailyGoal}</Text>
         <Text style={styles.legendText}>Food: {consumed}</Text>
         <Text style={styles.legendText}>Ex: {burned}</Text>
       </View>
 
+      {/* Log list */}
       <FlatList
         data={[
           ...meals.map(m => ({ ...m, type: 'food' })),
